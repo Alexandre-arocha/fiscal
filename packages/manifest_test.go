@@ -1,6 +1,7 @@
 package packages
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,7 +20,9 @@ func names(deps []Dep) []string {
 }
 
 func TestParseNPM(t *testing.T) {
-	deps, err := parseNPM([]byte(`{
+	p, err := parseNPM([]byte(`{
+  "name": "demo",
+  "scripts": { "jest": "jest --ci" },
   "dependencies": {
     "express": "^4.19.0",
     "my-lodash": "npm:lodash@^4.17.0",
@@ -28,23 +31,29 @@ func TestParseNPM(t *testing.T) {
     "in-workspace": "workspace:*",
     "shorthand": "owner/repo"
   },
-  "devDependencies": { "@types/node": "^22.0.0" }
+  "devDependencies": { "@types/node": "^22.0.0", "jest": "^29.0.0" }
 }`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := names(deps), []string{"@types/node", "express", "lodash"}; !slices.Equal(got, want) {
+	if got, want := names(p.deps), []string{"@types/node", "express", "jest", "lodash"}; !slices.Equal(got, want) {
 		t.Fatalf("names = %v, want %v", got, want)
 	}
-	for _, d := range deps {
-		if d.Name == "express" && d.Line != 3 {
-			t.Errorf("express line = %d, want 3", d.Line)
-		}
+	lines := map[string]int{}
+	for _, d := range p.deps {
+		lines[d.Name] = d.Line
+	}
+	// jest must point at devDependencies, not at the scripts entry.
+	if want := map[string]int{"express": 5, "lodash": 6, "jest": 12, "@types/node": 12}; !maps.Equal(lines, want) {
+		t.Errorf("lines = %v, want %v", lines, want)
+	}
+	if want := []depKey{{NPM, "demo"}}; !slices.Equal(p.local, want) {
+		t.Errorf("local = %v, want %v", p.local, want)
 	}
 }
 
 func TestParseRequirements(t *testing.T) {
-	deps, err := parseRequirements([]byte(`# comentário
+	p, err := parseRequirements([]byte(`# comentário
 requests>=2.31  # http
 Flask_SQLAlchemy[async]==3.1 ; python_version >= "3.9"
 -r dev.txt
@@ -63,13 +72,30 @@ uvicorn
 		{Ecosystem: PyPI, Name: "flask-sqlalchemy", Line: 3},
 		{Ecosystem: PyPI, Name: "uvicorn", Line: 10},
 	}
-	if !slices.Equal(deps, want) {
-		t.Fatalf("deps = %+v, want %+v", deps, want)
+	if !slices.Equal(p.deps, want) {
+		t.Fatalf("deps = %+v, want %+v", p.deps, want)
+	}
+}
+
+func TestPEP508Name(t *testing.T) {
+	for spec, want := range map[string]string{
+		"requests":                       "requests",
+		"Django>=4.2":                    "django",
+		"zope.interface[test] ; os_name": "zope-interface",
+		"pkg@ https://example.com/p.whl": "",
+		"pkg [extra] @ git+https://x/y":  "",
+		"  ":                             "",
+		"./local/dir":                    "",
+	} {
+		got, ok := pep508Name(spec)
+		if got != want || ok != (want != "") {
+			t.Errorf("pep508Name(%q) = %q, %v; want %q", spec, got, ok, want)
+		}
 	}
 }
 
 func TestParseGoMod(t *testing.T) {
-	deps, err := parseGoMod([]byte(`module example.com/demo
+	p, err := parseGoMod([]byte(`module example.com/demo
 
 go 1.22
 
@@ -88,8 +114,11 @@ replace example.com/local => ../local
 		{Ecosystem: Go, Name: "github.com/google/uuid", Line: 6},
 		{Ecosystem: Go, Name: "golang.org/x/mod", Line: 7},
 	}
-	if !slices.Equal(deps, want) {
-		t.Fatalf("deps = %+v, want %+v", deps, want)
+	if !slices.Equal(p.deps, want) {
+		t.Fatalf("deps = %+v, want %+v", p.deps, want)
+	}
+	if want := []depKey{{Go, "example.com/demo"}}; !slices.Equal(p.local, want) {
+		t.Errorf("local = %v, want %v", p.local, want)
 	}
 }
 

@@ -12,16 +12,30 @@ Não compete com revisores de PR por IA. É a camada que *prova* o que um reviso
 
 ## O que já é verificado
 
-**Pacotes** (`packages`) — lê `package.json`, `requirements*.txt` e `go.mod` (ignora `node_modules`, `vendor`, `.venv`) e consulta cada dependência:
+**Pacotes** (`packages`) — lê os manifestos abaixo (ignora `node_modules`, `vendor`, `.venv`) e consulta cada dependência:
+
+| Ecossistema | Arquivos |
+|---|---|
+| npm | `package.json` (dependencies, dev, optional, peer) |
+| PyPI | `requirements*.txt`, `pyproject.toml` (PEP 621, `[dependency-groups]`, Poetry, uv, PDM, `[build-system]`) |
+| Go | `go.mod` |
 
 | Situação | Gravidade |
 |---|---|
 | não existe no registro (npm, PyPI, proxy do Go) | alta |
 | criado há menos de 30 dias | média |
 
-Dependências de git, caminho local, workspace ou URL não são consultadas. Módulos Go com `replace` também não. `pyproject.toml` ainda não é lido.
+Não são consultados:
 
-**Privacidade:** os *nomes* das dependências (não o código) são enviados a [api.deps.dev](https://deps.dev) e, se ele não conhecer o pacote, ao registro oficial. Não use em projetos cujos nomes de pacotes internos sejam sigilosos. As respostas ficam em cache local por 24 h (1 h para pacotes não encontrados), na pasta de cache do usuário (`fiscal/packages`).
+- dependências de git, caminho local, URL ou workspace;
+- pacotes definidos no próprio repositório (`name` de outro `package.json` ou `pyproject.toml`, `module` de outro `go.mod`);
+- escopos npm com registro próprio no `.npmrc` (`@acme:registry=…`) ou em `npmScopes` do `.yarnrc.yml`;
+- módulos Go em `GONOPROXY`/`GOPRIVATE` (do ambiente ou de `go env -w`) ou com `replace`;
+- dependências Poetry com `source` próprio e pacotes listados em `[tool.uv.sources]`.
+
+Ainda não são lidos: `Pipfile`, `setup.py`/`setup.cfg` e imports no código.
+
+**Privacidade:** os *nomes* das dependências (não o código) são enviados a [api.deps.dev](https://deps.dev) e, se ele não conhecer o pacote, ao registro oficial. Pacotes privados reconhecidos pelas regras acima nunca são enviados; outros nomes internos, sim. As respostas ficam em cache local por 24 h (1 h para pacotes não encontrados), na pasta de cache do usuário (`fiscal/packages`).
 
 ## Instalação
 

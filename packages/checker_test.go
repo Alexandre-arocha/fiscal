@@ -3,6 +3,7 @@ package packages
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,9 @@ func TestCheckerFlagsMissingAndNewPackages(t *testing.T) {
 		bySeverity[f.Severity]++
 		if f.Line == 0 || f.File == "" {
 			t.Errorf("finding without location: %+v", f)
+		}
+		if f.Severity == scanner.High && !strings.Contains(f.Fix, "nomes sem escopo") {
+			t.Errorf("missing npm private-package hint: %q", f.Fix)
 		}
 	}
 	// ghost appears in two manifests; new once; old is fine.
