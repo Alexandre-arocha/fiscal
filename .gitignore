@@ -1,0 +1,13 @@
+# binários
+/fiscal
+*.exe
+/dist/
+
+# ambiente local
+.env
+.env.*
+!.env.example
+
+# logs de ferramentas do editor/agente
+/receipts/
+/review-receipts/
