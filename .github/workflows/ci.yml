@@ -33,5 +33,9 @@ jobs:
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: race detector
         run: go test -race ./...
+      - name: live registries
+        run: go test -run TestLive -v ./packages/
+        env:
+          FISCAL_LIVE: "1"
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

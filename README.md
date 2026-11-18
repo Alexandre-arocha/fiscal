@@ -8,7 +8,20 @@ Scanner de código aberto que confere o que o código gerado por IA costuma erra
 
 Não compete com revisores de PR por IA. É a camada que *prova* o que um revisor de diff não confere.
 
-> **Status:** semana 1 de 10. O motor e o CLI existem, mas os verificadores ainda não estão ligados — `fiscal scan` hoje sempre responde "Nenhum problema encontrado". Veja o [roteiro](#roteiro).
+> **Status:** semana 2 de 10. O verificador de pacotes funciona; segredos e vulnerabilidades chegam nas semanas 3 e 4. Veja o [roteiro](#roteiro).
+
+## O que já é verificado
+
+**Pacotes** (`packages`) — lê `package.json`, `requirements*.txt` e `go.mod` (ignora `node_modules`, `vendor`, `.venv`) e consulta cada dependência:
+
+| Situação | Gravidade |
+|---|---|
+| não existe no registro (npm, PyPI, proxy do Go) | alta |
+| criado há menos de 30 dias | média |
+
+Dependências de git, caminho local, workspace ou URL não são consultadas. Módulos Go com `replace` também não. `pyproject.toml` ainda não é lido.
+
+**Privacidade:** os *nomes* das dependências (não o código) são enviados a [api.deps.dev](https://deps.dev) e, se ele não conhecer o pacote, ao registro oficial. Não use em projetos cujos nomes de pacotes internos sejam sigilosos. As respostas ficam em cache local por 24 h (1 h para pacotes não encontrados), na pasta de cache do usuário (`fiscal/packages`).
 
 ## Instalação
 
@@ -44,6 +57,7 @@ Verificadores independentes rodam em paralelo e o motor junta os achados, do mai
 ```
 cmd/fiscal/   CLI
 scanner/      motor: tipos Finding/Severity, interface Checker, execução paralela
+packages/     verificador de pacotes inexistentes ou recém-criados
 report/       saída em texto (português) e JSON
 ```
 
@@ -67,6 +81,7 @@ report/       saída em texto (português) e JSON
 ```sh
 go vet ./...
 go test ./...
+FISCAL_LIVE=1 go test -run TestLive ./packages/   # consulta os registros reais
 ```
 
 ## Segurança

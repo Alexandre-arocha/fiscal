@@ -1,0 +1,75 @@
+package packages
+
+import (
+	"context"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/Alexandre-arocha/fiscal/scanner"
+)
+
+func TestCheckerFlagsMissingAndNewPackages(t *testing.T) {
+	c, _ := newFake(t)
+	root := t.TempDir()
+	write(t, root, "package.json", `{
+  "dependencies": {
+    "old": "^1.0.0",
+    "new": "^0.1.0",
+    "ghost": "^1.0.0"
+  }
+}`)
+	write(t, root, "web/package.json", `{"dependencies": {"ghost": "^1.0.0"}}`)
+
+	ch := &Checker{Client: c, MinAge: 30 * 24 * time.Hour, Workers: 2}
+	findings, err := ch.Check(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bySeverity := map[scanner.Severity]int{}
+	for _, f := range findings {
+		bySeverity[f.Severity]++
+		if f.Line == 0 || f.File == "" {
+			t.Errorf("finding without location: %+v", f)
+		}
+	}
+	// ghost appears in two manifests; new once; old is fine.
+	if bySeverity[scanner.High] != 2 || bySeverity[scanner.Medium] != 1 || len(findings) != 3 {
+		t.Fatalf("findings = %+v", findings)
+	}
+}
+
+func TestLiveRegistries(t *testing.T) {
+	if os.Getenv("FISCAL_LIVE") == "" {
+		t.Skip("set FISCAL_LIVE=1 to query the real registries")
+	}
+	c := NewClient()
+	c.CacheDir = ""
+	for _, tc := range []struct {
+		eco    Ecosystem
+		name   string
+		exists bool
+	}{
+		{NPM, "express", true},
+		{NPM, "@types/node", true},
+		{NPM, "react-super-auth-helper-zz9", false},
+		{PyPI, "requests", true},
+		{PyPI, "flask-sqlalchemy", true},
+		{PyPI, "fastapi-magic-orm-zz9", false},
+		{Go, "github.com/google/uuid", true},
+		{Go, "github.com/nobody-zz9/nothing", false},
+	} {
+		info, err := c.Lookup(context.Background(), tc.eco, tc.name)
+		if err != nil {
+			t.Errorf("%s/%s: %v", tc.eco, tc.name, err)
+			continue
+		}
+		if info.Exists != tc.exists {
+			t.Errorf("%s/%s: exists = %v, want %v", tc.eco, tc.name, info.Exists, tc.exists)
+		}
+		if info.Exists && info.Created.IsZero() {
+			t.Errorf("%s/%s: no creation date", tc.eco, tc.name)
+		}
+	}
+}

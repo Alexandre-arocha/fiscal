@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/Alexandre-arocha/fiscal/packages"
 	"github.com/Alexandre-arocha/fiscal/report"
 	"github.com/Alexandre-arocha/fiscal/scanner"
 )
@@ -101,6 +102,8 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// checkers lists the enabled checks. Packages, secrets and vulnerabilities
-// arrive in weeks 2–4 of the plan.
-func checkers() []scanner.Checker { return nil }
+// checkers lists the enabled checks. Secrets and vulnerabilities arrive in
+// weeks 3–4 of the plan.
+func checkers() []scanner.Checker {
+	return []scanner.Checker{packages.New()}
+}
