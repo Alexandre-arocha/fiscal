@@ -75,21 +75,35 @@ uvicorn
 	if !slices.Equal(p.deps, want) {
 		t.Fatalf("deps = %+v, want %+v", p.deps, want)
 	}
+	// Git and URL requirements are declared (code may import them) but
+	// never looked up.
+	var declared []string
+	for _, k := range p.declared {
+		declared = append(declared, k.name)
+	}
+	slices.Sort(declared)
+	if want := []string{"b", "flask-sqlalchemy", "mypkg", "requests", "uvicorn"}; !slices.Equal(declared, want) {
+		t.Errorf("declared = %v, want %v", declared, want)
+	}
 }
 
 func TestPEP508Name(t *testing.T) {
-	for spec, want := range map[string]string{
-		"requests":                       "requests",
-		"Django>=4.2":                    "django",
-		"zope.interface[test] ; os_name": "zope-interface",
-		"pkg@ https://example.com/p.whl": "",
-		"pkg [extra] @ git+https://x/y":  "",
-		"  ":                             "",
-		"./local/dir":                    "",
+	type result struct {
+		name     string
+		registry bool
+	}
+	for spec, want := range map[string]result{
+		"requests":                       {"requests", true},
+		"Django>=4.2":                    {"django", true},
+		"zope.interface[test] ; os_name": {"zope-interface", true},
+		"pkg@ https://example.com/p.whl": {"pkg", false},
+		"pkg [extra] @ git+https://x/y":  {"pkg", false},
+		"  ":                             {"", false},
+		"./local/dir":                    {"", false},
 	} {
-		got, ok := pep508Name(spec)
-		if got != want || ok != (want != "") {
-			t.Errorf("pep508Name(%q) = %q, %v; want %q", spec, got, ok, want)
+		name, registry := pep508Name(spec)
+		if got := (result{name, registry}); got != want {
+			t.Errorf("pep508Name(%q) = %+v, want %+v", spec, got, want)
 		}
 	}
 }

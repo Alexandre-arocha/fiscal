@@ -12,18 +12,22 @@ Não compete com revisores de PR por IA. É a camada que *prova* o que um reviso
 
 ## O que já é verificado
 
-**Pacotes** (`packages`) — lê os manifestos abaixo (ignora `node_modules`, `vendor`, `.venv`) e consulta cada dependência:
+**Pacotes** (`packages`) — lê os manifestos e os imports do código (ignora `node_modules`, `vendor`, `.venv`, `dist`, `build` e afins) e consulta cada dependência:
 
-| Ecossistema | Arquivos |
-|---|---|
-| npm | `package.json` (dependencies, dev, optional, peer) |
-| PyPI | `requirements*.txt`, `pyproject.toml` (PEP 621, `[dependency-groups]`, Poetry, uv, PDM, `[build-system]`) |
-| Go | `go.mod` |
+| Ecossistema | Manifestos | Imports |
+|---|---|---|
+| npm | `package.json` (dependencies, dev, optional, peer) | `.js` `.jsx` `.mjs` `.cjs` `.ts` `.tsx` `.vue` `.svelte` `.astro` |
+| PyPI | `requirements*.txt`, `pyproject.toml` (PEP 621, `[dependency-groups]`, Poetry, uv, PDM, `[build-system]`), `Pipfile`, `setup.cfg`, `setup.py` (só listas literais) | `.py` |
+| Go | `go.mod` | — (o compilador já exige tudo no `go.mod`) |
 
 | Situação | Gravidade |
 |---|---|
-| não existe no registro (npm, PyPI, proxy do Go) | alta |
-| criado há menos de 30 dias | média |
+| dependência declarada que não existe no registro (npm, PyPI, proxy do Go) | alta |
+| import JS/TS de pacote não declarado que não existe no npm | alta |
+| import Python de módulo sem pacote com esse nome no PyPI | média (o nome do pacote é deduzido) |
+| pacote criado há menos de 30 dias | média |
+
+Um import só é consultado quando nada no repositório explica o nome. Ficam de fora: módulos nativos (Node, biblioteca padrão do Python), caminhos relativos, aliases (`paths` do `tsconfig`/`jsconfig`, import maps do Deno, prefixos `@/`, `~/`, `#`, `$`), nomes de pastas e arquivos do próprio projeto, módulos de ambientes como Blender e MicroPython, e módulos Python de pacotes com nome conhecido diferente (`yaml` → PyYAML, `cv2` → opencv-python…).
 
 Não são consultados:
 
@@ -33,9 +37,9 @@ Não são consultados:
 - módulos Go em `GONOPROXY`/`GOPRIVATE` (do ambiente ou de `go env -w`) ou com `replace`;
 - dependências Poetry com `source` próprio e pacotes listados em `[tool.uv.sources]`.
 
-Ainda não são lidos: `Pipfile`, `setup.py`/`setup.cfg` e imports no código.
+Ainda não são lidos: `extras_require` do `setup.py`, notebooks (`.ipynb`) e `environment.yml` do conda.
 
-**Privacidade:** os *nomes* das dependências (não o código) são enviados a [api.deps.dev](https://deps.dev) e, se ele não conhecer o pacote, ao registro oficial. Pacotes privados reconhecidos pelas regras acima nunca são enviados; outros nomes internos, sim. As respostas ficam em cache local por 24 h (1 h para pacotes não encontrados), na pasta de cache do usuário (`fiscal/packages`).
+**Privacidade:** os *nomes* das dependências e dos imports sem explicação local (não o código) são enviados a [api.deps.dev](https://deps.dev) e, se ele não conhecer o pacote, ao registro oficial. Pacotes privados reconhecidos pelas regras acima nunca são enviados; outros nomes internos, sim. As respostas ficam em cache local por 24 h (1 h para pacotes não encontrados), na pasta de cache do usuário (`fiscal/packages`).
 
 ## Instalação
 

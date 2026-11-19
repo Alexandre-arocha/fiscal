@@ -65,6 +65,43 @@ black = "^24"
 	}
 }
 
+func TestParsePipfile(t *testing.T) {
+	p, err := parsePipfile([]byte(`[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[[source]]
+name = "private"
+url = "https://pypi.corp.example/simple"
+
+[packages]
+requests = "*"
+django = {version = ">=4.2", extras = ["argon2"]}
+corp-lib = {version = "*", index = "private"}
+local-pkg = {path = ".", editable = true}
+from-git = {git = "https://github.com/a/b.git"}
+
+[dev-packages]
+pytest = "*"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// corp-lib comes from the private index; local-pkg and from-git are
+	// not on PyPI at all. All six are still declared.
+	want := []Dep{
+		{Ecosystem: PyPI, Name: "django", Line: 11},
+		{Ecosystem: PyPI, Name: "requests", Line: 10},
+		{Ecosystem: PyPI, Name: "pytest", Line: 17},
+	}
+	if !slices.Equal(p.deps, want) {
+		t.Fatalf("deps =\n%+v\nwant\n%+v", p.deps, want)
+	}
+	if len(p.declared) != 6 {
+		t.Errorf("declared = %v, want 6 entries", p.declared)
+	}
+}
+
 func TestParsePyprojectInvalid(t *testing.T) {
 	if _, err := parsePyproject([]byte("[project\nname = 1")); err == nil {
 		t.Fatal("want error for invalid TOML")

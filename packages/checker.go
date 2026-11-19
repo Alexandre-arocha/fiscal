@@ -18,8 +18,8 @@ const (
 
 var registryName = map[Ecosystem]string{NPM: "npm", PyPI: "PyPI", Go: "proxy do Go"}
 
-// Checker reports dependencies that are missing from their registry or were
-// created less than MinAge ago.
+// Checker reports dependencies, declared or imported, that are missing from
+// their registry or were created less than MinAge ago.
 type Checker struct {
 	Client  *Client
 	MinAge  time.Duration
@@ -85,14 +85,34 @@ func (c *Checker) Check(ctx context.Context, root string) ([]scanner.Finding, er
 func judge(d Dep, info Info, now time.Time, minAge time.Duration) (scanner.Finding, bool) {
 	reg := registryName[d.Ecosystem]
 	f := scanner.Finding{File: d.File, Line: d.Line}
+	subject := fmt.Sprintf("pacote %q", d.Name)
+	if d.Import != "" {
+		subject = fmt.Sprintf("o código importa %q", d.Import)
+		if d.Import != d.Name {
+			subject += fmt.Sprintf(" (pacote %q)", d.Name)
+		}
+	}
 	switch age := now.Sub(info.Created); {
+	case !info.Exists && d.Import != "":
+		f.Severity = scanner.High
+		f.Title = fmt.Sprintf("%s, que não existe no %s", subject, reg)
+		f.Fix = "Não instale esse nome sem confirmar de onde ele vem: a IA pode ter inventado o pacote, e qualquer pessoa pode registrá-lo com código malicioso (slopsquatting)."
+		if d.Ecosystem == PyPI {
+			// The PyPI name behind a Python module is a guess.
+			f.Severity = scanner.Medium
+			f.Fix += " Se o módulo vem de um pacote com outro nome, declare esse pacote nas dependências."
+		}
 	case !info.Exists:
 		f.Severity = scanner.High
-		f.Title = fmt.Sprintf("pacote %q não existe no %s", d.Name, reg)
+		f.Title = fmt.Sprintf("%s não existe no %s", subject, reg)
 		f.Fix = "Confira o nome. A IA pode ter inventado este pacote, e qualquer pessoa pode registrá-lo com código malicioso (slopsquatting). " + privateHint(d)
 	case !info.Created.IsZero() && age < minAge:
+		days := int(age.Hours() / 24)
 		f.Severity = scanner.Medium
-		f.Title = fmt.Sprintf("pacote %q foi criado há %d dia(s) no %s", d.Name, int(age.Hours()/24), reg)
+		f.Title = fmt.Sprintf("%s foi criado há %d dia(s) no %s", subject, days, reg)
+		if d.Import != "" {
+			f.Title = fmt.Sprintf("%s, criado há %d dia(s) no %s", subject, days, reg)
+		}
 		f.Fix = "Pacotes muito novos são comuns em ataques. Confira autor, repositório e downloads antes de usar."
 	default:
 		return f, false

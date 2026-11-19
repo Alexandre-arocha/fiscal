@@ -44,6 +44,32 @@ func TestCheckerFlagsMissingAndNewPackages(t *testing.T) {
 	}
 }
 
+func TestCheckerReportsUnknownImports(t *testing.T) {
+	t.Setenv("GOENV", "off")
+	c, _ := newFake(t)
+	root := t.TempDir()
+	write(t, root, "app.js", "import g from \"ghost\"\nimport o from \"old\"\n")
+	write(t, root, "tool.py", "import ghost\n")
+
+	ch := &Checker{Client: c, MinAge: 30 * 24 * time.Hour, Workers: 2}
+	findings, err := ch.Check(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]scanner.Severity{}
+	for _, f := range findings {
+		got[f.File] = f.Severity
+		if !strings.Contains(f.Title, `importa "ghost"`) {
+			t.Errorf("title = %q", f.Title)
+		}
+	}
+	// JS imports name the npm package exactly; a Python module's PyPI
+	// name is a guess, so it is reported with less certainty.
+	if len(findings) != 2 || got["app.js"] != scanner.High || got["tool.py"] != scanner.Medium {
+		t.Fatalf("findings = %+v", findings)
+	}
+}
+
 func TestLiveRegistries(t *testing.T) {
 	if os.Getenv("FISCAL_LIVE") == "" {
 		t.Skip("set FISCAL_LIVE=1 to query the real registries")
