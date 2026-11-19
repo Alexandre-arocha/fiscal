@@ -2,6 +2,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -114,8 +115,8 @@ func TestLookupRetriesRateLimit(t *testing.T) {
 
 func TestLookupGivesUpOnServerErrors(t *testing.T) {
 	c, f := newFake(t)
-	if _, err := c.Lookup(context.Background(), NPM, "down"); err == nil {
-		t.Fatal("want error")
+	if _, err := c.Lookup(context.Background(), NPM, "down"); !errors.Is(err, errUnavailable) {
+		t.Fatalf("err = %v, want errUnavailable", err)
 	}
 	if n := f.count("/v3/systems/npm/packages/down"); n != maxAttempts {
 		t.Errorf("requests = %d, want %d", n, maxAttempts)

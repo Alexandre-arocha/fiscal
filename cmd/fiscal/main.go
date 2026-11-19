@@ -22,7 +22,7 @@ var version = "dev"
 const usage = `fiscal — confere o que o código gerado por IA costuma errar.
 
 Uso:
-  fiscal scan [--format text|json] [diretório]
+  fiscal scan [--format text|json] [--offline] [diretório]
   fiscal version
 
 Códigos de saída: 0 sem achados, 1 com achados, 2 erro.
@@ -54,6 +54,7 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	format := fs.String("format", "text", "formato de saída: text ou json")
+	offline := fs.Bool("offline", false, "não consulta a rede (pula o verificador de pacotes)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -87,7 +88,10 @@ func scan(args []string, stdout, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	findings, scanErr := scanner.Run(ctx, root, checkers())
+	if *offline {
+		fmt.Fprintln(stderr, "modo offline: verificador de pacotes desativado")
+	}
+	findings, scanErr := scanner.Run(ctx, root, checkers(*offline))
 	if err := write(stdout, findings); err != nil {
 		fmt.Fprintln(stderr, "erro ao escrever relatório:", err)
 		return 2
@@ -102,8 +106,11 @@ func scan(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// checkers lists the enabled checks. Secrets and vulnerabilities arrive in
-// weeks 3–4 of the plan.
-func checkers() []scanner.Checker {
+// checkers lists the enabled checks; offline mode drops those that query
+// the network. Secrets and vulnerabilities arrive in weeks 3–4 of the plan.
+func checkers(offline bool) []scanner.Checker {
+	if offline {
+		return nil
+	}
 	return []scanner.Checker{packages.New()}
 }

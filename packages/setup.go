@@ -45,27 +45,67 @@ func parseSetupCfg(data []byte) (parsed, error) {
 }
 
 var (
-	setupList = regexp.MustCompile(`\b(?:install_requires|setup_requires|tests_require)\s*=\s*\[`)
-	// One string literal of the list, after any blanks and comments.
+	setupList   = regexp.MustCompile(`\b(?:install_requires|setup_requires|tests_require)\s*=\s*\[`)
+	setupExtras = regexp.MustCompile(`\bextras_require\s*=\s*\{`)
+	// One string literal of a list, after any blanks and comments.
 	setupItem = regexp.MustCompile(`^(?:\s|#[^\n]*)*["']([^"'\n]*)["']\s*,?`)
 )
 
 // parseSetupPy reads the literal lists passed as install_requires,
-// setup_requires and tests_require. setup.py is code and is never run, so
-// lists built at runtime are not seen.
+// setup_requires and tests_require, and the lists inside a literal
+// extras_require dict. setup.py is code and is never run, so requirements
+// built at runtime are not seen.
 func parseSetupPy(data []byte) (parsed, error) {
 	var p parsed
 	text := string(data)
 	lines := newLineIndex(text)
 	for _, m := range setupList.FindAllStringIndex(text, -1) {
+		p.addSetupList(text, m[1], lines)
+	}
+	for _, m := range setupExtras.FindAllStringIndex(text, -1) {
+		dict := text[:closingBrace(text, m[1])]
 		for pos := m[1]; ; {
-			item := setupItem.FindStringSubmatchIndex(text[pos:])
-			if item == nil {
+			open := strings.IndexByte(dict[pos:], '[')
+			if open < 0 {
 				break
 			}
-			p.addRequirement(text[pos+item[2]:pos+item[3]], lines.line(pos+item[2]), nil)
-			pos += item[1]
+			pos += open + 1
+			p.addSetupList(dict, pos, lines)
 		}
 	}
 	return p, nil
+}
+
+// addSetupList records the string literals of a Python list that starts at
+// pos (just after "["), up to the first item that is not a literal.
+func (p *parsed) addSetupList(text string, pos int, lines lineIndex) {
+	for {
+		item := setupItem.FindStringSubmatchIndex(text[pos:])
+		if item == nil {
+			return
+		}
+		p.addRequirement(text[pos+item[2]:pos+item[3]], lines.line(pos+item[2]), nil)
+		pos += item[1]
+	}
+}
+
+// closingBrace returns the index of the "}" closing a dict whose body starts
+// at start, skipping string literals; len(text) if it is never closed.
+func closingBrace(text string, start int) int {
+	depth := 1
+	for i := start; i < len(text); i++ {
+		switch c := text[i]; c {
+		case '"', '\'':
+			if j := strings.IndexByte(text[i+1:], c); j >= 0 {
+				i += j + 1
+			}
+		case '{':
+			depth++
+		case '}':
+			if depth--; depth == 0 {
+				return i
+			}
+		}
+	}
+	return len(text)
 }

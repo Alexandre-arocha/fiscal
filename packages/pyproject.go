@@ -37,6 +37,15 @@ type pyproject struct {
 		PDM struct {
 			DevDependencies map[string][]string `toml:"dev-dependencies"`
 		} `toml:"pdm"`
+		Rye struct {
+			DevDependencies []string `toml:"dev-dependencies"`
+		} `toml:"rye"`
+		Hatch struct {
+			Envs map[string]struct {
+				Dependencies      []string `toml:"dependencies"`
+				ExtraDependencies []string `toml:"extra-dependencies"`
+			} `toml:"envs"`
+		} `toml:"hatch"`
 	} `toml:"tool"`
 }
 
@@ -73,6 +82,11 @@ func parsePyproject(data []byte) (parsed, error) {
 	specs = append(specs, pp.Tool.UV.DevDependencies...)
 	for _, group := range slices.Sorted(maps.Keys(pp.Tool.PDM.DevDependencies)) {
 		specs = append(specs, pp.Tool.PDM.DevDependencies[group]...)
+	}
+	specs = append(specs, pp.Tool.Rye.DevDependencies...)
+	for _, env := range slices.Sorted(maps.Keys(pp.Tool.Hatch.Envs)) {
+		e := pp.Tool.Hatch.Envs[env]
+		specs = append(specs, slices.Concat(e.Dependencies, e.ExtraDependencies)...)
 	}
 	for _, s := range specs {
 		p.addRequirement(s, literalLine(lines, s), pinned)

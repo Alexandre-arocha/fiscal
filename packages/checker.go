@@ -39,17 +39,21 @@ func (c *Checker) Check(ctx context.Context, root string) ([]scanner.Finding, er
 		return findings, err
 	}
 
-	// Each package is looked up once, however many manifests declare it.
+	// Each package is looked up once, however many files mention it.
 	var keys []depKey
-	seen := map[depKey]bool{}
+	index := map[depKey]int{}
 	for _, d := range deps {
 		k := depKey{d.Ecosystem, d.Name}
-		if !seen[k] {
-			seen[k] = true
+		if _, ok := index[k]; !ok {
+			index[k] = len(keys)
 			keys = append(keys, k)
 		}
 	}
 
+	// Once a registry proves unavailable, the remaining lookups would fail
+	// the same way after their retries: stop them.
+	ctx, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
 	infos := make([]Info, len(keys))
 	errs := make([]error, len(keys))
 	sem := make(chan struct{}, max(c.Workers, 1))
@@ -58,28 +62,50 @@ func (c *Checker) Check(ctx context.Context, root string) ([]scanner.Finding, er
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			if ctx.Err() != nil {
+				errs[i] = context.Cause(ctx)
+				return
+			}
 			infos[i], errs[i] = c.Client.Lookup(ctx, k.eco, k.name)
+			if errors.Is(errs[i], errUnavailable) {
+				stop(errs[i])
+			} else if errs[i] != nil && ctx.Err() != nil {
+				errs[i] = context.Cause(ctx)
+			}
 		})
 	}
 	wg.Wait()
 
-	known := map[depKey]Info{}
-	for i, k := range keys {
-		if errs[i] == nil {
-			known[k] = infos[i]
-		}
-	}
 	now := c.Client.Now()
 	for _, d := range deps {
-		info, ok := known[depKey{d.Ecosystem, d.Name}]
-		if !ok {
-			continue // lookup failed; reported through the error
+		i := index[depKey{d.Ecosystem, d.Name}]
+		if errs[i] != nil {
+			continue // reported through the summary error
 		}
-		if f, suspicious := judge(d, info, now, c.MinAge); suspicious {
+		if f, suspicious := judge(d, infos[i], now, c.MinAge); suspicious {
 			findings = append(findings, f)
 		}
 	}
-	return findings, errors.Join(errs...)
+	return findings, summarize(errs)
+}
+
+// summarize folds the lookup errors into one, so an offline scan says so
+// once instead of once per package.
+func summarize(errs []error) error {
+	var first error
+	failed := 0
+	for _, err := range errs {
+		if err != nil {
+			failed++
+			if first == nil {
+				first = err
+			}
+		}
+	}
+	if failed == 0 {
+		return nil
+	}
+	return fmt.Errorf("não foi possível consultar %d pacote(s): %w", failed, first)
 }
 
 func judge(d Dep, info Info, now time.Time, minAge time.Duration) (scanner.Finding, bool) {

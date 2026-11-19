@@ -27,6 +27,13 @@ func TestScanCleanDirectory(t *testing.T) {
 	}
 }
 
+func TestScanOffline(t *testing.T) {
+	code, out, errOut := call("scan", "--offline", t.TempDir())
+	if code != 0 || !strings.Contains(out, "Nenhum problema") || !strings.Contains(errOut, "offline") {
+		t.Fatalf("scan --offline = %d %q %q", code, out, errOut)
+	}
+}
+
 func TestScanJSON(t *testing.T) {
 	code, out, _ := call("scan", "--format", "json", t.TempDir())
 	var got struct{ Findings []any }

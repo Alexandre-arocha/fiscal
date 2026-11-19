@@ -24,13 +24,25 @@ Verificadores ficam em pacotes próprios e entram na lista `checkers()` de `cmd/
 
 ### Verificador de pacotes (`packages/`)
 
-1. `Collect` percorre o diretório (sem seguir symlinks, sem arquivos > 5 MB) e lê os manifestos. Antes de qualquer consulta, descarta pacotes definidos no próprio repositório e pacotes de registros privados (escopos do `.npmrc`/`.yarnrc.yml`, `GONOPROXY`/`GOPRIVATE`) — consultá-los seria alarme falso e vazaria nomes internos.
-   Também extrai os imports de arquivos JS/TS e Python (até 1 MB, sem `.min.js`). Depois da varredura, cada import é descartado se algo no repositório o explica (dependência declarada, módulo nativo, alias do `tsconfig`/Deno, pasta ou arquivo local, módulo de ambiente como Blender); o que sobra vira consulta com o nome do pacote deduzido.
-2. Cada pacote único é consultado uma vez, com no máximo 8 consultas simultâneas.
-3. Fonte principal: `api.deps.dev/v3/systems/{npm|pypi|go}/packages/{nome}` — existência e data da primeira versão.
-4. Se o deps.dev responde 404, confirma no registro oficial (`HEAD` no npm, `/simple/` do PyPI, `@latest` do proxy do Go). Existe lá mas não no deps.dev = publicado agora há pouco.
-5. Erros de rede, 429 e 5xx: até 4 tentativas com backoff exponencial ou `Retry-After` (máx. 30 s).
-6. Cache em disco: 24 h para pacotes encontrados, 1 h para não encontrados (um nome livre pode ser registrado por um atacante a qualquer momento).
+Organizado por ecossistema, para que um novo (Cargo, Maven…) seja um arquivo novo mais um `case` em `parserFor`:
+
+| Arquivo | Papel |
+|---|---|
+| `collect.go` | percorre o repositório, junta o que cada arquivo diz e resolve os imports |
+| `npm.go`, `jsconfig.go` | `package.json`, `.npmrc`, `.yarnrc.yml`, imports JS/TS, aliases do `tsconfig` e do Deno |
+| `python.go`, `pyproject.go`, `setup.go`, `python_names.go` | requirements, `pyproject.toml`, `Pipfile`, `setup.*`, conda, notebooks, imports Python e tabelas de nomes |
+| `golang.go` | `go.mod`, `GONOPROXY`/`GOPRIVATE` |
+| `registry.go`, `cache.go` | deps.dev e registros oficiais, retry, cache em disco |
+| `checker.go` | consulta cada pacote uma vez e transforma as respostas em achados |
+
+Fluxo:
+
+1. `Collect` lê cada arquivo uma vez. Cada parser devolve o que o arquivo **declara**, o que o repositório **define**, escopos **privados**, **aliases** e **imports**.
+2. Depois da varredura, descarta pacotes locais e privados, e transforma em consulta só os imports que nada no repositório explica.
+3. `Checker` consulta cada pacote único uma vez (até 8 em paralelo). Se um registro fica indisponível depois das tentativas, as consultas restantes param e o erro sai uma vez só.
+4. `judge` decide o achado: inexistente, recém-criado ou nada.
+
+Regras detalhadas, privacidade e cache: [pacotes.md](pacotes.md).
 
 ## Planejado (web, semanas 6–8)
 

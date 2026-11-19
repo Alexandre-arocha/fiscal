@@ -52,7 +52,7 @@ setup(
         # pinned for py3.8
         'uvicorn[standard]>=0.30',
     ],
-    extras_require={"dev": ["pytest"]},
+    extras_require={"dev": ["pytest", "ruff"], "docs": ["mkdocs"]},
     tests_require=["hypothesis"],
     setup_requires=build_deps(),
 )
@@ -60,11 +60,14 @@ setup(
 	if err != nil {
 		t.Fatal(err)
 	}
-	// extras_require and lists built by code are not read.
+	// setup_requires is built by code at runtime, so it is not seen.
 	want := []Dep{
 		{Ecosystem: PyPI, Name: "requests", Line: 6},
 		{Ecosystem: PyPI, Name: "uvicorn", Line: 8},
 		{Ecosystem: PyPI, Name: "hypothesis", Line: 11},
+		{Ecosystem: PyPI, Name: "pytest", Line: 10},
+		{Ecosystem: PyPI, Name: "ruff", Line: 10},
+		{Ecosystem: PyPI, Name: "mkdocs", Line: 10},
 	}
 	if !slices.Equal(p.deps, want) {
 		t.Fatalf("deps =\n%+v\nwant\n%+v", p.deps, want)

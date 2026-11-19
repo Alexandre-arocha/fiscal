@@ -65,6 +65,31 @@ black = "^24"
 	}
 }
 
+func TestParsePyprojectEnvs(t *testing.T) {
+	p, err := parsePyproject([]byte(`[tool.rye]
+dev-dependencies = ["pytest"]
+
+[tool.hatch.envs.default]
+dependencies = ["coverage[toml]"]
+extra-dependencies = ["mypy"]
+
+[tool.hatch.envs.docs]
+dependencies = ["mkdocs-material"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Dep{
+		{Ecosystem: PyPI, Name: "pytest", Line: 2},
+		{Ecosystem: PyPI, Name: "coverage", Line: 5},
+		{Ecosystem: PyPI, Name: "mypy", Line: 6},
+		{Ecosystem: PyPI, Name: "mkdocs-material", Line: 9},
+	}
+	if !slices.Equal(p.deps, want) {
+		t.Fatalf("deps =\n%+v\nwant\n%+v", p.deps, want)
+	}
+}
+
 func TestParsePipfile(t *testing.T) {
 	p, err := parsePipfile([]byte(`[[source]]
 name = "pypi"

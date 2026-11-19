@@ -3,6 +3,7 @@ package packages
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -143,6 +144,10 @@ func (c *Client) getJSON(ctx context.Context, target string, v any) (bool, error
 	}
 }
 
+// errUnavailable marks a registry that stayed unreachable, rate limited or
+// failing through every retry: other lookups would fail the same way.
+var errUnavailable = errors.New("registro indisponível")
+
 // retryBase is the first backoff step; tests shrink it.
 var retryBase = 500 * time.Millisecond
 
@@ -190,5 +195,5 @@ func (c *Client) do(ctx context.Context, method, target string) (*http.Response,
 			wait = min(time.Duration(secs)*time.Second, maxRetryAfter)
 		}
 	}
-	return nil, lastErr
+	return nil, fmt.Errorf("%w: %w", errUnavailable, lastErr)
 }
