@@ -102,6 +102,20 @@ s = "import fake"
 	}
 }
 
+func TestPyImportSkipsStandardLibrary(t *testing.T) {
+	var r repo
+	// Python 2 names come from compatibility code such as psf/requests'
+	// "try: import StringIO / except ImportError: import io".
+	for _, mod := range []string{"os", "tomllib", "StringIO", "cStringIO", "BaseHTTPServer", "urllib2", "_thread", "__future__"} {
+		if got := r.pyImport(mod, nil); got != "" {
+			t.Errorf("pyImport(%q) = %q, want it skipped", mod, got)
+		}
+	}
+	if got := r.pyImport("fancy_helper", nil); got != "fancy-helper" {
+		t.Errorf("pyImport(fancy_helper) = %q, want fancy-helper", got)
+	}
+}
+
 func TestParseNotebook(t *testing.T) {
 	p, err := parseNotebook([]byte(`{
  "cells": [

@@ -48,6 +48,23 @@ Um import só vira consulta quando nada no repositório explica o nome. Ficam de
 3. Até 8 consultas simultâneas. Erros de rede, 429 e 5xx têm até 4 tentativas, com espera crescente ou `Retry-After` (máx. 30 s). Se um registro continua indisponível depois disso, as consultas restantes param e o erro aparece uma vez só (código de saída 2).
 4. Cache em disco, na pasta de cache do usuário (`fiscal/packages`): 24 h para pacotes encontrados, 1 h para não encontrados (um nome livre pode ser registrado a qualquer momento).
 
+## Medição de falsos positivos
+
+Em 18/11/2026, sobre o commit `16076c1` mais a correção do Python 2, com seis repositórios públicos em clone raso:
+
+| Repositório | Commit | Dependências de manifesto | Imports não declarados consultados | Alarmes |
+|---|---|---|---|---|
+| `fastapi/full-stack-fastapi-template` | `77e550a` | 78 | 7 | 0 |
+| `psf/requests` | `3c7baaa` | 26 | 6 | 4 → 0 |
+| `t3-oss/create-t3-app` | `4709861` | 112 | 2 | 0 |
+| `shadcn-ui/taxonomy` | `298a885` | 100 | 0 | 0 |
+| `spf13/cobra` | `adbc881` | 4 | 0 | 0 |
+| `vercel/chatbot` | `a8989b5` | 85 | 1 | 0 |
+
+Os 4 alarmes do `psf/requests` eram falsos: módulos do Python 2 (`StringIO`, `cStringIO`, `BaseHTTPServer`, `SimpleHTTPServer`) importados em código de compatibilidade (`try/except ImportError`). A correção trata esses nomes como biblioteca padrão. Na mesma rodada, um projeto de exemplo com 5 nomes inventados teve os 5 detectados.
+
+Limite: são projetos escritos por pessoas e bem mantidos. Código gerado por IA, com mais imports soltos, ainda precisa de uma amostra própria.
+
 ## Privacidade
 
 Saem da máquina só os *nomes* das dependências e dos imports sem explicação local, nunca o código. Pacotes privados reconhecidos pelas regras acima não são enviados; outros nomes internos, sim. Para não consultar nada: `fiscal scan --offline`.

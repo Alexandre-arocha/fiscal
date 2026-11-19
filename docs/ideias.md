@@ -9,7 +9,7 @@ Fora do MVP. Entram no plano só por decisão explícita, para o escopo não cre
 - **Pacotes descontinuados**: o deps.dev já informa `isDeprecated`; a IA costuma sugerir pacotes abandonados (`request` no npm).
 - **Registro padrão privado** (`registry=` no `.npmrc`): pacotes internos sem escopo hoje aparecem como inexistentes.
 - **Lista de exceções por projeto** (arquivo de configuração) para silenciar um falso positivo. Necessária antes da GitHub Action (semana 9).
-- **Imports Python 2** (`urllib2`, `ConfigParser`): mensagem própria em vez de "pacote inexistente".
+- **Amostra de código gerado por IA** para medir falso positivo: a primeira medição ([pacotes.md](pacotes.md#medição-de-falsos-positivos)) usou projetos escritos por pessoas.
 - **Imports Go** fora do `go.mod`: hoje o compilador já pega.
 - `setup.py` com listas montadas em tempo de execução.
 - **Progresso no terminal** durante consultas longas.

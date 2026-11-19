@@ -1,9 +1,19 @@
 package packages
 
-// pyStdlib is sys.stdlib_module_names for Python 3.8 to 3.14, top-level
-// names only, including modules removed along the way. Private _names are
-// skipped separately.
+// pyStdlib is the standard library: sys.stdlib_module_names for Python 3.8
+// to 3.14 (top-level names, including modules removed along the way), plus
+// the Python 2 names that compatibility code still imports inside
+// try/except ImportError (StringIO, urllib2...). Private _names are skipped
+// separately.
 var pyStdlib = setOf(`
+StringIO cStringIO cPickle copy_reg Queue SocketServer ConfigParser repr Tkinter tkFileDialog tkSimpleDialog
+tkColorChooser tkCommonDialog tkFont tkMessageBox ScrolledText Tkconstants Tix ttk Tkdnd Dialog FileDialog
+SimpleDialog markupbase thread dummy_thread dbhash dumbdbm gdbm anydbm whichdb xmlrpclib DocXMLRPCServer
+SimpleXMLRPCServer httplib htmlentitydefs HTMLParser Cookie cookielib BaseHTTPServer SimpleHTTPServer
+CGIHTTPServer commands UserString UserList UserDict urlparse robotparser urllib2 md5 sha sets exceptions new
+popen2 mimetools rfc822 htmllib sgmllib mhlib mimify multifile posixfile imputil ihooks dircache fpformat
+statvfs user compiler hotshot bsddb Bastion rexec MimeWriter
+` + `
 abc aifc annotationlib antigravity argparse array ast asynchat asyncio asyncore atexit audioop base64 bdb
 binascii bisect builtins bz2 cProfile calendar cgi cgitb chunk cmath cmd code codecs codeop collections
 colorsys compileall compression concurrent configparser contextlib contextvars copy copyreg crypt csv ctypes
